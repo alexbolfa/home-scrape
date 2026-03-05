@@ -1,4 +1,5 @@
 import asyncio
+import platform
 
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright
@@ -50,7 +51,10 @@ async def run() -> None:
             print(f"Telegram: sent {total} new listings")
         except Exception as e:
             print(f"Telegram error: {e}")
-        macos.notify("Home Scraper", f"{total} new listings found")
+
+        if platform.system() == "Darwin":
+            macos.notify("Home Scraper", f"{total} new listings found")
+
     else:
         print("No new listings")
 
