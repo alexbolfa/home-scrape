@@ -13,10 +13,8 @@ class RoofzScraper(BaseScraper):
     def url(self) -> str:
         return "https://roofz.eu/huur/woningen"
 
-    async def parse(self, page: Page) -> list[Listing]:
-        await page.wait_for_selector(".offer-card.box-shadow", timeout=15000)
-
-        raw = await page.evaluate("""() => {
+    async def _parse_cards(self, page: Page) -> list[dict]:
+        return await page.evaluate("""() => {
             const cards = document.querySelectorAll('.offer-card.box-shadow');
             return Array.from(cards).map(c => {
                 const content = c.querySelector('.offer-card__content');
@@ -35,6 +33,28 @@ class RoofzScraper(BaseScraper):
                 };
             });
         }""")
+
+    async def parse(self, page: Page) -> list[Listing]:
+        await page.wait_for_selector(".offer-card.box-shadow", timeout=15000)
+        raw = await self._parse_cards(page)
+
+        # Dismiss cookie wall if present
+        cookie_btn = await page.query_selector('.cookie-wall button')
+        if cookie_btn:
+            await cookie_btn.click()
+            await page.wait_for_timeout(500)
+
+        # Handle pagination: click through remaining pages
+        while True:
+            next_btn = await page.query_selector(
+                '.pagination-item button[aria-label="Go to next page"]:not([disabled])'
+            )
+            if not next_btn:
+                break
+            await next_btn.click()
+            await page.wait_for_timeout(1000)
+            await page.wait_for_selector(".offer-card.box-shadow", timeout=15000)
+            raw.extend(await self._parse_cards(page))
 
         listings: list[Listing] = []
         for item in raw:
